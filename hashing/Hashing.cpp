@@ -46,6 +46,12 @@ public:
         return elements.find(ele) != elements.end();
     }
 
+    // Returns a boolean indicating if the bucket is empty
+    bool empty()
+    {
+        return size == 0;
+    }
+
     // Inserts an element in the bucket
     void insert(int ele)
     {
@@ -62,8 +68,23 @@ public:
 
         // Insert the element
         elements.insert(ele);
-        cout << "[SUCCESS] The element was added successfully\n";
         size++;
+        cout << "[SUCCESS] The element was added successfully\n";
+    }
+
+    // Removes an element from the buket
+    void remove(int ele)
+    {
+        if (!find(ele))
+        {
+            cout << "[WARNING] The element does not exist in the bucket. Skipping the operation.\n";
+            return;
+        }
+
+        // Remove the element
+        elements.erase(elements.find(ele));
+        cout << "[SUCCESS] The element was removed successfully\n";
+        size--;
     }
 
     // Returns the local depth of the bucket
@@ -90,9 +111,10 @@ public:
             {
                 elementsToDelete.push_back(ele);
                 size--;
-                newBucket.insert(ele);
+                newBucket.elements.insert(ele);
             }
         }
+
         for (int &ele : elementsToDelete)
             elements.erase(elements.find(ele));
 
@@ -138,11 +160,25 @@ private:
     {
         for (int i = 0; i < v.size();)
         {
-            cout << "'" << v[i] << "' (" << buckets[bucketMap[v[i]]].getDepth() << ")";
+            cout << "'" << v[i] << "'";
             i++;
             if (i != v.size())
                 cout << ", ";
         }
+    }
+
+    // Returns the split key for a particular bucket key
+    string getComplementaryKey(string key)
+    {
+        return (key[0] == '0' ? '1' : '0') + key.substr(1);
+    }
+
+    // Checks if the string `str` has the suffix `suffix`
+    bool hasSuffix(const string &str, const string &suffix)
+    {
+        if (str.length() < suffix.length())
+            return false;
+        return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
     }
 
 public:
@@ -162,55 +198,87 @@ public:
     // Inserts an element into the global directory by insering it into a bucket
     void insert(int element)
     {
-        if (debug)
-            cout << "[INFO] Trying to insert the value in the directory: " << element << "\n";
+        string key = getLSBBinaryDigits(element, depth);
+        if (bucketMap.find(key) == bucketMap.end())
+            throw "Can't find a bucket corresponding to this element's key"s;
 
-        for (int d = 0; d <= depth; d++)
+        Bucket &bucket = buckets[bucketMap[key]];
+        if (!bucket.isFull())
         {
-            string key = getLSBBinaryDigits(element, d);
-            if (bucketMap.find(key) == bucketMap.end())
-                continue;
-
-            Bucket &bucket = buckets[bucketMap[key]];
-            if (!bucket.isFull())
-            {
-                bucket.insert(element);
-                if (debug)
-                {
-                    cout << "[INFO] Adding element to already exisiting bucket.\n";
-                    display();
-                }
-                return;
-            }
-
-            if (bucket.getDepth() < depth)
-            {
-                if (debug)
-                    cout << "[INFO] Spliting a bucket.\n";
-                Bucket newBucket = bucket.split();
-
-                string complementaryKey = (key[0] == '0' ? '1' : '0') + key.substr(1);
-                bucketMap[complementaryKey] = bucketIndex;
-                bucketIndex++;
-                buckets.push_back(newBucket);
-
-                insert(element);
-                return;
-            }
-
+            bucket.insert(element);
             if (debug)
-                cout << "[INFO] Increasing the global depth of the directory.\n";
-            increaseDepth();
+            {
+                cout << "[INFO] Adding element to already exisiting bucket.\n";
+                display();
+            }
+            return;
+        }
+
+        if (bucket.getDepth() < depth)
+        {
+            if (debug)
+                cout << "[INFO] Spliting a bucket.\n";
+
+            Bucket newBucket = bucket.split();
+
+            string targetKey = "1" + getLSBBinaryDigits(element, bucket.getDepth() - 1);
+            cout << bucket.getDepth() << " " << targetKey << " " << depth << "\n";
+            for (int i = 0; i < (1 << depth); i++)
+            {
+                string key = getLSBBinaryDigits(i, depth);
+                if (hasSuffix(key, targetKey))
+                    bucketMap[key] = bucketIndex;
+            }
+            bucketIndex++;
+            buckets.push_back(newBucket);
+
             insert(element);
             return;
         }
 
-        throw "Was not able to find any bucket for the provided element"s;
+        increaseDepth();
+        insert(element);
+        return;
+    }
+
+    // Checks if it possible to merge a bucket with it's complement and performs the merge if possible
+    void mergeBucket(string key)
+    {
+        Bucket &bucket = buckets[bucketMap[key]];
+
+        string complementaryKey = getComplementaryKey(key);
+        Bucket &compBucket = buckets[bucketMap[complementaryKey]];
+    }
+
+    // Removes an element from the global directory by deleting it from a bucket if found
+    void remove(int element)
+    {
+        string key = getLSBBinaryDigits(element, depth);
+        if (bucketMap.find(key) == bucketMap.end())
+            throw "Can't find a bucket corresponding to this element's key"s;
+
+        Bucket &bucket = buckets[bucketMap[key]];
+        bucket.remove(element);
+
+        // Check if the bucket can be collapsed with another
+        mergeBucket(key);
+
+        if (debug)
+        {
+            cout << "[INFO] Adding element to already exisiting bucket.\n";
+            display();
+        }
+
+        return;
     }
 
     // Increments the depth of the global directory by 1
     void increaseDepth()
     {
+
+        if (debug)
+            cout << "[INFO] Increasing the global depth of the directory.\n";
+
         depth++;
 
         vector<string> keys;
@@ -228,10 +296,10 @@ public:
     // Prints the content of the directory to the STDOUT in a formatted manner
     void display()
     {
-        cout << "\n[LOG] Displaying the directory content\n";
+        cout << "\n[LOG] Displaying the directory content\n\n";
         cout << "Global depth: " << depth << "\n";
         printLine();
-        cout << "Bucket Identifier (Local Depth) ---> Elements\n";
+        cout << "Directory Identifier ---> Bucket Identifier (Local Depth) ---> Elements\n";
         printLine();
 
         map<int, vector<string>> mappings;
@@ -241,7 +309,12 @@ public:
         for (auto &[bucketIndex, keys] : mappings)
         {
             printKeys(keys);
-            cout << " ---> ";
+
+            string key = keys[0];
+            int localDepth = buckets[bucketIndex].getDepth();
+            string bucketKey = key.substr(key.size() - localDepth);
+
+            cout << " ---> '" << bucketKey << "' (" << localDepth << ") ---> ";
             buckets[bucketIndex].display();
         }
         printLine();
