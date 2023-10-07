@@ -205,115 +205,6 @@ private:
         return str.substr(str.size() - len);
     }
 
-public:
-    Directory() {}
-
-    Directory(int bucketCapacity)
-    {
-        depth = 0;
-        bucketIndex = 1;
-        this->bucketCapacity = bucketCapacity;
-
-        Bucket bucket = Bucket(bucketCapacity);
-        bucketMap[""] = 0;
-        buckets.push_back(bucket);
-    }
-
-    // Inserts an element into the global directory by insering it into a bucket
-    void insert(int element)
-    {
-        string key = getLSBBinaryDigits(element, depth);
-        if (bucketMap.find(key) == bucketMap.end())
-            throw "Can't find a bucket corresponding to this element's key"s;
-
-        Bucket &bucket = buckets[bucketMap[key]];
-        if (!bucket.isFull())
-        {
-            bucket.insert(element);
-            if (debug)
-            {
-                cout << "[INFO] Adding element to already exisiting bucket.\n";
-                display();
-            }
-            return;
-        }
-
-        if (bucket.getDepth() < depth)
-        {
-            if (debug)
-                cout << "[INFO] Spliting a bucket.\n";
-
-            Bucket newBucket = bucket.split();
-
-            string targetKey = "1" + getLSBBinaryDigits(element, bucket.getDepth() - 1);
-            cout << bucket.getDepth() << " " << targetKey << " " << depth << "\n";
-            for (int i = 0; i < (1 << depth); i++)
-            {
-                string key = getLSBBinaryDigits(i, depth);
-                if (hasSuffix(key, targetKey))
-                    bucketMap[key] = bucketIndex;
-            }
-            bucketIndex++;
-            buckets.push_back(newBucket);
-
-            insert(element);
-            return;
-        }
-
-        increaseDepth();
-        insert(element);
-        return;
-    }
-
-    // Checks if the bucket corresponding to a directory key can be merged with any other bucket, and performs the merge if possible
-    void checkForMerge(string key)
-    {
-        Bucket &bucket = buckets[bucketMap[key]];
-
-        // Check if the bucket can be collapsed with another
-        string bucketKey = suffix(key, bucket.getDepth());
-        string bucketCompKey = getComplementaryKey(bucketKey);
-        string accessCompKey = string(depth - bucketCompKey.size(), '0') + bucketCompKey;
-
-        if (buckets[bucketMap[accessCompKey]].getSize() + bucket.getSize() > bucketCapacity)
-            return;
-
-        if (debug)
-            cout << "[INFO] Merging two buckets togther.\n";
-
-        bucket.merge(buckets[bucketMap[accessCompKey]]);
-        for (int i = 0; i < (1 << depth); i++)
-        {
-            string newKey = getLSBBinaryDigits(i, depth);
-            if (suffix(newKey, bucket.getDepth()) == suffix(key, bucket.getDepth()))
-                bucketMap[newKey] = bucketMap[key];
-        }
-
-        checkForMerge(key);
-        decrementDepth();
-    }
-
-    // Removes an element from the global directory by deleting it from a bucket if found
-    void remove(int element)
-    {
-        string key = getLSBBinaryDigits(element, depth);
-        if (bucketMap.find(key) == bucketMap.end())
-            throw "Can't find a bucket corresponding to this element's key"s;
-
-        Bucket &bucket = buckets[bucketMap[key]];
-        bucket.remove(element);
-
-        cout << "[SUCCESS] Removed the element successfully from a bucket.\n";
-
-        checkForMerge(key);
-
-        // Display the rearranged structure in the debug mode
-        if (debug)
-            display();
-
-        return;
-    }
-
     // Increments the depth of the global directory by 1
     void increaseDepth()
     {
@@ -384,6 +275,125 @@ public:
         cout << "\n";
     }
 
+    // Checks if the bucket corresponding to a directory key can be merged with any other bucket, and performs the merge if possible
+    void checkForMerge(string key)
+    {
+        Bucket &bucket = buckets[bucketMap[key]];
+
+        // Check if the bucket can be collapsed with another
+        string bucketKey = suffix(key, bucket.getDepth());
+        string bucketCompKey = getComplementaryKey(bucketKey);
+        string accessCompKey = string(depth - bucketCompKey.size(), '0') + bucketCompKey;
+
+        if (buckets[bucketMap[accessCompKey]].getSize() + bucket.getSize() > bucketCapacity)
+            return;
+
+        if (debug)
+            cout << "[INFO] Merging two buckets togther.\n";
+
+        bucket.merge(buckets[bucketMap[accessCompKey]]);
+        for (int i = 0; i < (1 << depth); i++)
+        {
+            string newKey = getLSBBinaryDigits(i, depth);
+            if (suffix(newKey, bucket.getDepth()) == suffix(key, bucket.getDepth()))
+                bucketMap[newKey] = bucketMap[key];
+        }
+
+        checkForMerge(key);
+        decrementDepth();
+    }
+
+public:
+    Directory() {}
+
+    Directory(int bucketCapacity)
+    {
+        depth = 0;
+        bucketIndex = 1;
+        this->bucketCapacity = bucketCapacity;
+
+        Bucket bucket = Bucket(bucketCapacity);
+        bucketMap[""] = 0;
+        buckets.push_back(bucket);
+    }
+
+    // Inserts an element into the global directory by insering it into a bucket
+    void insert(int element)
+    {
+        string key = getLSBBinaryDigits(element, depth);
+        if (bucketMap.find(key) == bucketMap.end())
+            throw "Can't find a bucket corresponding to this element's key"s;
+
+        Bucket &bucket = buckets[bucketMap[key]];
+        if (!bucket.isFull())
+        {
+            bucket.insert(element);
+            if (debug)
+            {
+                cout << "[INFO] Adding element to already exisiting bucket.\n";
+                display();
+            }
+            return;
+        }
+
+        if (bucket.getDepth() < depth)
+        {
+            if (debug)
+                cout << "[INFO] Spliting a bucket.\n";
+
+            Bucket newBucket = bucket.split();
+
+            string targetKey = "1" + getLSBBinaryDigits(element, bucket.getDepth() - 1);
+            cout << bucket.getDepth() << " " << targetKey << " " << depth << "\n";
+            for (int i = 0; i < (1 << depth); i++)
+            {
+                string key = getLSBBinaryDigits(i, depth);
+                if (hasSuffix(key, targetKey))
+                    bucketMap[key] = bucketIndex;
+            }
+            bucketIndex++;
+            buckets.push_back(newBucket);
+
+            insert(element);
+            return;
+        }
+
+        increaseDepth();
+        insert(element);
+        return;
+    }
+
+    // Searches for a provided value and outputs the result to the STDOUT
+    void search(int element)
+    {
+        string key = getLSBBinaryDigits(element, depth);
+        if (buckets[bucketMap[key]].find(element))
+            cout << "Element found.\n";
+        else
+            cout << "Element does not exist in the directory.\n";
+    }
+
+    // Removes an element from the global directory by deleting it from a bucket if found
+    void remove(int element)
+    {
+        string key = getLSBBinaryDigits(element, depth);
+        if (bucketMap.find(key) == bucketMap.end())
+            throw "Can't find a bucket corresponding to this element's key"s;
+
+        Bucket &bucket = buckets[bucketMap[key]];
+        bucket.remove(element);
+
+        cout << "[SUCCESS] Removed the element successfully from a bucket.\n";
+
+        checkForMerge(key);
+
+        // Display the rearranged structure in the debug mode
+        if (debug)
+            display();
+
+        return;
+    }
+
     // Enables the debugging output
     void startDebugging()
     {
@@ -411,6 +421,7 @@ private:
         cout << "Hi! This is a case-sensitive hasher that supports the following operations: \n";
         cout << "I X\t| Used to insert the value 'X' into the directory\n";
         cout << "D X\t| Used to delete the value 'X' from the directory\n";
+        cout << "S X\t| Used to search the value 'X' in the directory\n";
         cout << "\nPlease note that all the commands are CASE-SENSITIVE in nature.\n";
     }
 
@@ -466,6 +477,7 @@ public:
             while (ss >> word)
                 words.push_back(word);
 
+            // Insert operation
             if (words[0] == "I")
             {
                 if (words.size() != 2)
@@ -480,6 +492,7 @@ public:
                 }
                 directory.insert(stoi(words[1]));
             }
+            // Delete operation
             else if (words[0] == "D")
             {
                 if (words.size() != 2)
@@ -494,6 +507,21 @@ public:
                 }
                 directory.remove(stoi(words[1]));
             }
+            // Search operation
+            else if (words[0] == "S")
+            {
+                if (words.size() != 2)
+                {
+                    cout << "[ERROR] The search command expects one argument: value to be deleted. You supplied " << words.size() - 1 << ".\n";
+                    continue;
+                }
+                if (!isStringConvertibleToNumber(words[1]))
+                {
+                    cout << "[ERROR] The valiue supplied is not a valid number.\n";
+                    continue;
+                }
+                directory.search(stoi(words[1]));
+            }
             else
                 cout << "[ERROR] Unrecognized command: " + words[0] << ".\n";
         }
@@ -502,7 +530,7 @@ public:
 
 int main()
 {
-    int bucketCapacity = 4;
+    int bucketCapacity = 2;
     Hash hasher = Hash(bucketCapacity);
     hasher.startDebugging();
     hasher.REPL();
