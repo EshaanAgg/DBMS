@@ -56,12 +56,13 @@ public:
         }
         if (find(ele))
         {
-            cout << "The element has already been added to a bucket. Skipping the operation...\n";
+            cout << "[WARNING] The element has already been added to a bucket. Skipping the operation.\n";
             return;
         }
 
         // Insert the element
         elements.insert(ele);
+        cout << "[SUCCESS] The element was added successfully\n";
         size++;
     }
 
@@ -97,6 +98,20 @@ public:
 
         return newBucket;
     }
+
+    // Prints the contents of the bucket to the STDOUT in a comma separated manner
+    void display()
+    {
+        auto it = elements.begin();
+        while (it != elements.end())
+        {
+            cout << *it;
+            ++it;
+            if (it != elements.end())
+                cout << ", ";
+        }
+        cout << endl;
+    }
 };
 
 class Directory
@@ -107,8 +122,32 @@ private:
     map<string, int> bucketMap;
     vector<Bucket> buckets;
     int bucketIndex;
+    int debug = 0;
+    int tableWidth = 120;
+
+    // Prints a line of dashes to the STDOUT
+    void printLine()
+    {
+        for (int i = 0; i < tableWidth; i++)
+            cout << "-";
+        cout << "\n";
+    }
+
+    // Utility to print the keys vector
+    void printKeys(vector<string> &v)
+    {
+        for (int i = 0; i < v.size();)
+        {
+            cout << "'" << v[i] << "' (" << buckets[bucketMap[v[i]]].getDepth() << ")";
+            i++;
+            if (i != v.size())
+                cout << ", ";
+        }
+    }
 
 public:
+    Directory() {}
+
     Directory(int bucketCapacity)
     {
         depth = 0;
@@ -123,6 +162,9 @@ public:
     // Inserts an element into the global directory by insering it into a bucket
     void insert(int element)
     {
+        if (debug)
+            cout << "[INFO] Trying to insert the value in the directory: " << element << "\n";
+
         for (int d = 0; d <= depth; d++)
         {
             string key = getLSBBinaryDigits(element, d);
@@ -132,14 +174,19 @@ public:
             Bucket &bucket = buckets[bucketMap[key]];
             if (!bucket.isFull())
             {
-                cout << "[INFO] Adding element to already exisiting bucket.\n";
                 bucket.insert(element);
+                if (debug)
+                {
+                    cout << "[INFO] Adding element to already exisiting bucket.\n";
+                    display();
+                }
                 return;
             }
 
             if (bucket.getDepth() < depth)
             {
-                cout << "[INFO] Spliting a bucket.\n";
+                if (debug)
+                    cout << "[INFO] Spliting a bucket.\n";
                 Bucket newBucket = bucket.split();
 
                 string complementaryKey = (key[0] == '0' ? '1' : '0') + key.substr(1);
@@ -151,7 +198,8 @@ public:
                 return;
             }
 
-            cout << "[INFO] Increasing the global depth of the directory.\n";
+            if (debug)
+                cout << "[INFO] Increasing the global depth of the directory.\n";
             increaseDepth();
             insert(element);
             return;
@@ -176,15 +224,135 @@ public:
             bucketMap.erase(key);
         }
     }
+
+    // Prints the content of the directory to the STDOUT in a formatted manner
+    void display()
+    {
+        cout << "\n[LOG] Displaying the directory content\n";
+        cout << "Global depth: " << depth << "\n";
+        printLine();
+        cout << "Bucket Identifier (Local Depth) ---> Elements\n";
+        printLine();
+
+        map<int, vector<string>> mappings;
+        for (auto &[key, bucketIndex] : bucketMap)
+            mappings[bucketIndex].push_back(key);
+
+        for (auto &[bucketIndex, keys] : mappings)
+        {
+            printKeys(keys);
+            cout << " ---> ";
+            buckets[bucketIndex].display();
+        }
+        printLine();
+        cout << "\n";
+    }
+
+    // Enables the debugging output
+    void startDebugging()
+    {
+        debug = 1;
+    }
+
+    // Disables the debugging output
+    void stopDebugging()
+    {
+        debug = 0;
+    }
+};
+
+// A wrapper class that exposes the functionalities and REPL for managing the directory and buckets.
+class Hash
+{
+private:
+    int bucketCapacity;
+    Directory directory;
+    string demarcator = ">> ";
+
+    // Shows help and gives an overview of the suported commands
+    void showHelp()
+    {
+        cout << "Hi! This is a case-sensitive hasher that supports the following operations: \n";
+        cout << "I X\t| Used to insert the value 'X' into the directory\n";
+        cout << "\nPlease note that all the commands are CASE-SENSITIVE in nature.\n";
+    }
+
+    // Utility function to check if a string can be converted to a number
+    bool isStringConvertibleToNumber(const string &str)
+    {
+        istringstream iss(str);
+        double number;
+
+        if (iss >> number)
+            return true;
+        else
+            return false;
+    }
+
+public:
+    Hash(int capacity)
+    {
+        bucketCapacity = capacity;
+        directory = Directory(bucketCapacity);
+    }
+
+    // Enables the debugging output
+    void startDebugging()
+    {
+        directory.startDebugging();
+    }
+
+    // Stop the debugging output
+    void stopDebugging()
+    {
+        directory.stopDebugging();
+    }
+
+    // Start an interactive terminal
+    void REPL()
+    {
+        showHelp();
+        vector<string> words;
+
+        while (true)
+        {
+            cout << demarcator;
+            words.clear();
+            string line;
+            getline(std::cin, line);
+
+            // Create a stringstream to tokenize the line
+            stringstream ss(line);
+            string word;
+
+            // Tokenize the line and store words in a vector
+            while (ss >> word)
+                words.push_back(word);
+
+            if (words[0] == "I")
+            {
+                if (words.size() != 2)
+                {
+                    cout << "[ERROR] The insert command expects one argument: value to added. You supplied " << words.size() - 1 << ".\n";
+                    continue;
+                }
+                if (!isStringConvertibleToNumber(words[1]))
+                {
+                    cout << "[ERROR] The valiue supplied is not a valid number.\n";
+                    continue;
+                }
+                directory.insert(stoi(words[1]));
+            }
+            else
+                cout << "[ERROR] Unrecognized command: " + words[0] << ".\n";
+        }
+    }
 };
 
 int main()
 {
-    Directory d = Directory(2);
-    while (true)
-    {
-        int n;
-        cin >> n;
-        d.insert(n);
-    }
+    int bucketCapacity = 2;
+    Hash hasher = Hash(bucketCapacity);
+    hasher.startDebugging();
+    hasher.REPL();
 }
