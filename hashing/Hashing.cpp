@@ -1,11 +1,11 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Generates a `pos` length key which is used to lookup the number `n` in extensible hashing
-string getLSBBinaryDigits(int n, int pos)
+// Generates a `len` length key which is used to lookup the number `n` in extensible hashing
+string getLSBBinaryDigits(int n, int len)
 {
     string digits = "";
-    while (pos--)
+    while (len--)
     {
         digits = (n % 2 ? "1" : "0") + digits;
         n /= 2;
@@ -32,6 +32,12 @@ public:
     Bucket(int capacity)
     {
         this->capacity = capacity;
+    }
+
+    // Returns the number of elements stored in the bucket
+    int getSize()
+    {
+        return size;
     }
 
     // Returns if a bucket is full
@@ -112,6 +118,7 @@ public:
                 elementsToDelete.push_back(ele);
                 size--;
                 newBucket.elements.insert(ele);
+                newBucket.size++;
             }
         }
 
@@ -119,6 +126,17 @@ public:
             elements.erase(elements.find(ele));
 
         return newBucket;
+    }
+
+    // Merges the content of another bucket into itself
+    void merge(Bucket &bucket)
+    {
+        depth--;
+        for (const int &ele : bucket.elements)
+        {
+            elements.insert(ele);
+            size++;
+        }
     }
 
     // Prints the contents of the bucket to the STDOUT in a comma separated manner
@@ -181,6 +199,12 @@ private:
         return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
     }
 
+    // Returns the suffix of the string `str` with length `len`
+    string suffix(string str, int len)
+    {
+        return str.substr(str.size() - len);
+    }
+
 public:
     Directory() {}
 
@@ -241,13 +265,32 @@ public:
         return;
     }
 
-    // Checks if it possible to merge a bucket with it's complement and performs the merge if possible
-    void mergeBucket(string key)
+    // Checks if the bucket corresponding to a directory key can be merged with any other bucket, and performs the merge if possible
+    void checkForMerge(string key)
     {
         Bucket &bucket = buckets[bucketMap[key]];
 
-        string complementaryKey = getComplementaryKey(key);
-        Bucket &compBucket = buckets[bucketMap[complementaryKey]];
+        // Check if the bucket can be collapsed with another
+        string bucketKey = suffix(key, bucket.getDepth());
+        string bucketCompKey = getComplementaryKey(bucketKey);
+        string accessCompKey = string(depth - bucketCompKey.size(), '0') + bucketCompKey;
+
+        if (buckets[bucketMap[accessCompKey]].getSize() + bucket.getSize() > bucketCapacity)
+            return;
+
+        if (debug)
+            cout << "[INFO] Merging two buckets togther.\n";
+
+        bucket.merge(buckets[bucketMap[accessCompKey]]);
+        for (int i = 0; i < (1 << depth); i++)
+        {
+            string newKey = getLSBBinaryDigits(i, depth);
+            if (suffix(newKey, bucket.getDepth()) == suffix(key, bucket.getDepth()))
+                bucketMap[newKey] = bucketMap[key];
+        }
+
+        checkForMerge(key);
+        decrementDepth();
     }
 
     // Removes an element from the global directory by deleting it from a bucket if found
@@ -260,14 +303,13 @@ public:
         Bucket &bucket = buckets[bucketMap[key]];
         bucket.remove(element);
 
-        // Check if the bucket can be collapsed with another
-        mergeBucket(key);
+        cout << "[SUCCESS] Removed the element successfully from a bucket.\n";
 
+        checkForMerge(key);
+
+        // Display the rearranged structure in the debug mode
         if (debug)
-        {
-            cout << "[INFO] Adding element to already exisiting bucket.\n";
             display();
-        }
 
         return;
     }
@@ -291,6 +333,27 @@ public:
             bucketMap["1" + key] = bucketMap[key];
             bucketMap.erase(key);
         }
+    }
+
+    // Decrements the depth of the global directory by 1 if possible
+    void decrementDepth()
+    {
+        // For the decrement to be possible, the depths of all the buckets must be strictly
+        for (int i = 0; i < (1 << depth); i++)
+            if (depth == buckets[bucketMap[getLSBBinaryDigits(i, depth)]].getDepth())
+                return;
+
+        if (debug)
+            cout << "[INFO] Increasing the global depth of the directory.\n";
+
+        for (int i = 0; i < (1 << depth); i++)
+        {
+            string key = getLSBBinaryDigits(i, depth);
+            string newKey = getLSBBinaryDigits(i, depth - 1);
+            bucketMap[newKey] = bucketMap[key];
+            bucketMap.erase(key);
+        }
+        depth--;
     }
 
     // Prints the content of the directory to the STDOUT in a formatted manner
@@ -347,6 +410,7 @@ private:
     {
         cout << "Hi! This is a case-sensitive hasher that supports the following operations: \n";
         cout << "I X\t| Used to insert the value 'X' into the directory\n";
+        cout << "D X\t| Used to delete the value 'X' from the directory\n";
         cout << "\nPlease note that all the commands are CASE-SENSITIVE in nature.\n";
     }
 
@@ -416,6 +480,20 @@ public:
                 }
                 directory.insert(stoi(words[1]));
             }
+            else if (words[0] == "D")
+            {
+                if (words.size() != 2)
+                {
+                    cout << "[ERROR] The delete command expects one argument: value to be deleted. You supplied " << words.size() - 1 << ".\n";
+                    continue;
+                }
+                if (!isStringConvertibleToNumber(words[1]))
+                {
+                    cout << "[ERROR] The valiue supplied is not a valid number.\n";
+                    continue;
+                }
+                directory.remove(stoi(words[1]));
+            }
             else
                 cout << "[ERROR] Unrecognized command: " + words[0] << ".\n";
         }
@@ -424,7 +502,7 @@ public:
 
 int main()
 {
-    int bucketCapacity = 2;
+    int bucketCapacity = 4;
     Hash hasher = Hash(bucketCapacity);
     hasher.startDebugging();
     hasher.REPL();
