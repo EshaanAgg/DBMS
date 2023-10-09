@@ -173,16 +173,18 @@ private:
         cout << "\n";
     }
 
-    // Utility to print the keys vector
-    void printKeys(vector<string> &v)
+    // Utility to return the keys vector
+    string getKeysString(vector<string> &v)
     {
+        string keys = "";
         for (int i = 0; i < v.size();)
         {
-            cout << "'" << v[i] << "'";
+            keys += "'" + v[i] + "'";
             i++;
             if (i != v.size())
-                cout << ", ";
+                keys += ", ";
         }
+        return keys;
     }
 
     // Returns the split key for a particular bucket key
@@ -260,17 +262,31 @@ private:
         for (auto &[key, bucketIndex] : bucketMap)
             mappings[bucketIndex].push_back(key);
 
+        vector<string> keyStrings, bucketStrings;
+        size_t maxLength = 0;
+
         for (auto &[bucketIndex, keys] : mappings)
         {
-            printKeys(keys);
+            string keyString = getKeysString(keys);
+            keyStrings.push_back(keyString);
+            maxLength = max(maxLength, keyString.size());
 
             string key = keys[0];
             int localDepth = buckets[bucketIndex].getDepth();
             string bucketKey = key.substr(key.size() - localDepth);
 
-            cout << " ---> '" << bucketKey << "' (" << localDepth << ") ---> ";
-            buckets[bucketIndex].display();
+            string displayKey = " ---> '" + bucketKey + "'" + string(depth - bucketKey.size(), ' ') + " (" + to_string(localDepth) + ") ---> ";
+            bucketStrings.push_back(displayKey);
         }
+
+        int i = 0;
+        for (auto &[bucketIndex, keys] : mappings)
+        {
+            cout << keyStrings[i] << string(maxLength - keyStrings[i].size(), ' ') << bucketStrings[i];
+            buckets[bucketIndex].display();
+            i++;
+        }
+
         printLine();
         cout << "\n";
     }
@@ -344,7 +360,6 @@ public:
             Bucket newBucket = bucket.split();
 
             string targetKey = "1" + getLSBBinaryDigits(element, bucket.getDepth() - 1);
-            cout << bucket.getDepth() << " " << targetKey << " " << depth << "\n";
             for (int i = 0; i < (1 << depth); i++)
             {
                 string key = getLSBBinaryDigits(i, depth);
