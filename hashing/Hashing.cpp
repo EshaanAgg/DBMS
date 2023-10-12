@@ -190,6 +190,8 @@ private:
     // Returns the split key for a particular bucket key
     string getComplementaryKey(string key)
     {
+        if (key == "")
+            return key;
         return (key[0] == '0' ? '1' : '0') + key.substr(1);
     }
 
@@ -237,7 +239,7 @@ private:
                 return;
 
         if (debug)
-            cout << "[INFO] Increasing the global depth of the directory.\n";
+            cout << "[INFO] Drecreasing the global depth of the directory.\n";
 
         for (int i = 0; i < (1 << depth); i++)
         {
@@ -301,7 +303,7 @@ private:
         string bucketCompKey = getComplementaryKey(bucketKey);
         string accessCompKey = string(depth - bucketCompKey.size(), '0') + bucketCompKey;
 
-        if (buckets[bucketMap[accessCompKey]].getSize() + bucket.getSize() > bucketCapacity)
+        if (buckets[bucketMap[accessCompKey]].getSize() + bucket.getSize() > bucketCapacity || depth == 0)
             return;
 
         if (debug)
