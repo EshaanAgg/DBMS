@@ -3,3 +3,7 @@
 
 # Compiled binaires
 hashing/Hashing
+B+Tree/main
+
+# .cph folder from VSCode extension to run the program
+**/.cph
